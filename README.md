@@ -1,2 +1,2 @@
-# finstore
+# connoisseur
 Open source financial data aggregator for people and businesses
