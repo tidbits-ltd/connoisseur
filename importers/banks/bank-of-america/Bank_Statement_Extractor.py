@@ -5,20 +5,19 @@ Notes:
     - This program works only when the landing page is like screenshot1
     - This program works only when a verification code is requested
     - This program works only when the user takes control and enters the verification code
-        and also selects the account they want the statements for
-    - This program works only downloads the statements for the default year (which is the current year) that
-        is selected by the webpage (Right now it is by defualt 2020 and so this program downloads only the statements
-        from 2020)
+        and also selects the account they want the statements for and then go back to python console and click enter
+    - This program downloads all statements for every year on a selected account, but there are some monthly statements
+        where a pop up comes up and this is not yet handled. The popup can be seen at popup_statement_clicked.png
     - There are some warnings that get printed to the console, but from my research it seems we can ignore them because
         they don't really affect the execution of the program
     - This program downloads the statement pdfs to the default download folder of chrome
 
 TO DO:
-- Solution for when the landing page is different that screenshot1. (I haven't managed to
+- Solution for when the landing page is different than screenshot1. (I haven't managed to
 get a screenshot of the other landing page)
 - Research if verification will always be needed with this program and if it won't be we need
 to implement a solution for when the verification page is not shown
-- Solution to download statements for all the years
+- Solution to handling popup when a certain month's bank statement is clicked.
 - Separate BankStatementExtractor.access_page(self,bank_url) into different methods within the class
 - Be able to specify the folder you want to download the statements to
 """
@@ -50,6 +49,7 @@ class BankStatementExtractor:
         # (there is another landing page that comes up once in a while)
         await self.page.click(selector='div.hide-for-large-up')
         await self.page.waitForSelector(selector='#onlineId1')
+        await self.page.waitFor(2000)
         online_id_field = await self.page.querySelector(selector='#onlineId1')
         pass_id_field = await self.page.querySelector(selector='#passcode1')
         await online_id_field.click()
@@ -73,22 +73,34 @@ class BankStatementExtractor:
         #We Assume that the user has already clicked the account that they want the statements downloaded for
         #Here we click the statements and documents tab > select view all statements > go thourgh all statements visible there
             #and download to google chrome's default download directory.
-        # NOTE: This is only done for whatever year that is by default selected when the account is selected. NOT ALL YEARS
         await self.page.waitForSelector(selector='[name="statements_and_documents"]')
         await self.page.click(selector='[name="statements_and_documents"]')
-        await self.page.waitForSelector(selector='[id="ecc-accordionPanel0"]')
-        await self.page.waitFor(4000)  # Need to find the least amount of time to wait for this to work
-        await self.page.click(selector='[id="ecc-accordionPanel0"]')
-        await self.page.waitForSelector(
-            selector='#ecc-accordionPanel0 > div > div.content > div > div > div.block-grid > div')
-        await self.page.waitFor(2000)  # Need to find the least amount of time to wait for this to work
-        all_statements_for_curr_year = len(
-            await self.page.xpath(expression='//*[@id="ecc-accordionPanel0"]/div/div[2]/div/div/div[1]/div'))
-        download_links = await self.page.xpath(expression='//*[@id="downloadPDFAccLink"]')
-        for index in range(0, all_statements_for_curr_year):
-            await download_links[index].click()
-            await download_links[index].click()
-            await self.page.waitFor(2000)
+
+        await self.page.waitForSelector(selector='#yearDropDown')
+        await self.page.waitFor(4000)
+        years = await self.page.xpath(expression='//*[@id="yearDropDown"]/option')
+        for year_obj in years:
+            year = await(await year_obj.getProperty(propertyName='value')).jsonValue()
+            await self.page.select('#yearDropDown',year)
+            await self.page.waitForSelector(selector='[id="ecc-accordionPanel0"]')
+            await self.page.waitFor(4000)  # Need to find the least amount of time to wait for this to work
+            await self.page.click(selector='[id="ecc-accordionPanel0"]')
+            await self.page.waitForSelector(
+                selector='#ecc-accordionPanel0 > div > div.content > div > div > div.block-grid > div',options={'timeout':5000})
+            await self.page.waitFor(2000)  # Need to find the least amount of time to wait for this to work
+            all_statements_for_curr_year = len(
+                await self.page.xpath(expression='//*[@id="ecc-accordionPanel0"]/div/div[2]/div/div/div[1]/div'))
+            if all_statements_for_curr_year == []:
+                break
+            download_links = await self.page.xpath(expression='//*[@id="downloadPDFAccLink"]')
+            for index in range(0, all_statements_for_curr_year):
+                try:
+                    await download_links[index].click()
+                    await download_links[index].click()
+                    await self.page.waitFor(2000)
+                except:
+                    continue
+
 
 
     async def put_together(self):
